@@ -1,0 +1,35 @@
+name: Staging CI
+
+on:
+  push:
+    branches:
+      - migration/cloudflare-workers-staging
+  pull_request:
+    branches:
+      - migration/cloudflare-workers-staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clinilync-staging-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type-check
+        run: bun run lint
+
+      - name: Build frontend
+        run: bun run build
