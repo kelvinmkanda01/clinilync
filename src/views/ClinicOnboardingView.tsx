@@ -329,12 +329,12 @@ export const ClinicSetupView: React.FC<ClinicSetupViewProps> = ({ onNavigate, on
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingOrganizationUsers, setLoadingOrganizationUsers] = useState(false);
+  const [organizationUsersLoadAttempted, setOrganizationUsersLoadAttempted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [profile, setProfile] = useState<Record<string, string>>({ countryCode: '', region: '', city: '', addressLine1: '', postalCode: '', currencyCode: '', timezone: '', phone: '' });
   const [customDepartment, setCustomDepartment] = useState('');
   const [inviteByDepartment, setInviteByDepartment] = useState<Record<string, { firstName: string; lastName: string; email: string }>>({});
-  const [staffInvite, setStaffInvite] = useState({ firstName: '', lastName: '', email: '', roleCode: 'RECEPTIONIST' });
 
   const refresh = async () => {
     setLoading(true);
@@ -353,8 +353,9 @@ export const ClinicSetupView: React.FC<ClinicSetupViewProps> = ({ onNavigate, on
   // The staff directory is only required for department administrator assignment.
   // Keep it out of the initial onboarding request to make the first screen faster.
   useEffect(() => {
-    if (activeStep !== 5 || !setup || Array.isArray(setup.organizationUsers) || loadingOrganizationUsers) return;
+    if (activeStep !== 5 || !setup || Array.isArray(setup.organizationUsers) || loadingOrganizationUsers || organizationUsersLoadAttempted) return;
     let cancelled = false;
+    setOrganizationUsersLoadAttempted(true);
     setLoadingOrganizationUsers(true);
     api.v1GetOnboardingState(true)
       .then((next) => {
@@ -367,7 +368,7 @@ export const ClinicSetupView: React.FC<ClinicSetupViewProps> = ({ onNavigate, on
         if (!cancelled) setLoadingOrganizationUsers(false);
       });
     return () => { cancelled = true; };
-  }, [activeStep, setup, loadingOrganizationUsers]);
+  }, [activeStep, setup, loadingOrganizationUsers, organizationUsersLoadAttempted]);
 
   const run = async (action: () => Promise<void>, success?: string) => {
     setError(null); setMessage(null); setSaving(true);
@@ -444,7 +445,13 @@ export const ClinicSetupView: React.FC<ClinicSetupViewProps> = ({ onNavigate, on
       )}
 
       {activeStep === 6 && (
-        <section className="cl-onboarding-step-panel"><h3>Invite clinic staff</h3><p>Invitations can remain pending while the clinic activates. No invitation grants access until it is accepted.</p><div className="cl-onboarding-fields"><Field label="First name" inputId="staff-first"><input id="staff-first" className="cl-onboarding-input" value={staffInvite.firstName} onChange={(e) => setStaffInvite({ ...staffInvite, firstName: e.target.value })} /></Field><Field label="Last name" inputId="staff-last"><input id="staff-last" className="cl-onboarding-input" value={staffInvite.lastName} onChange={(e) => setStaffInvite({ ...staffInvite, lastName: e.target.value })} /></Field><Field label="Work email" inputId="staff-email"><input id="staff-email" className="cl-onboarding-input" type="email" value={staffInvite.email} onChange={(e) => setStaffInvite({ ...staffInvite, email: e.target.value })} /></Field><Field label="Role" inputId="staff-role"><select id="staff-role" className="cl-onboarding-input" value={staffInvite.roleCode} onChange={(e) => setStaffInvite({ ...staffInvite, roleCode: e.target.value })}><option value="RECEPTIONIST">Receptionist</option><option value="NURSE">Nurse</option><option value="DOCTOR">Doctor</option><option value="BILLING_STAFF">Billing staff</option><option value="LAB_STAFF">Laboratory staff</option></select></Field></div><button type="button" disabled={saving} className="cl-ui-button cl-ui-button-secondary cl-ui-button-md" onClick={() => void run(async () => { await api.v1CreateInvitation(staffInvite); setStaffInvite({ firstName: '', lastName: '', email: '', roleCode: 'RECEPTIONIST' }); }, 'Staff invitation saved.')}>Send invitation</button><button type="button" disabled={saving} className="cl-ui-button cl-ui-button-primary cl-ui-button-md" onClick={() => void run(async () => { await api.v1CompleteOnboardingStep('staff_invitations'); setActiveStep(7); }, 'Staff invitations skipped. You can invite staff later from your clinic workspace.')}>Skip to review <ArrowRight size={16} aria-hidden="true" /></button></section>
+        <section className="cl-onboarding-step-panel">
+          <h3>Staff invitations</h3>
+          <p>You can invite clinic staff after activating your workspace. Skipping this step does not affect clinic setup, and no staff accounts will be created now.</p>
+          <button type="button" disabled={saving} className="cl-ui-button cl-ui-button-primary cl-ui-button-md" onClick={() => void run(async () => { await api.v1CompleteOnboardingStep('staff_invitations'); setActiveStep(7); }, 'Staff invitations skipped. You can invite staff later from your clinic workspace.')}>
+            Skip to review <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </section>
       )}
 
       {activeStep === 7 && (
