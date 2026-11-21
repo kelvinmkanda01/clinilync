@@ -393,6 +393,24 @@ v1AuthRouter.post('/change-password', authenticateToken, authRateLimiter, origin
 v1AuthRouter.get('/session', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const context = req.securityContext!;
   const session = sessionManager.getSession(context.sessionToken);
+  const db = getDatabaseClient();
+  let availableOrganizations: Organization[] = [];
+  if (context.user.isSuperAdmin) {
+    const organizations = await db.query<Organization>(
+      'SELECT * FROM organizations WHERE is_active = TRUE ORDER BY name ASC'
+    );
+    availableOrganizations = organizations.rows;
+  } else {
+    const organizations = await db.query<Organization>(
+      `SELECT DISTINCT o.*
+       FROM organizations AS o
+       INNER JOIN user_organizations AS uo ON uo.organization_id = o.id
+       WHERE uo.user_id = $1 AND uo.status = $2 AND o.is_active = TRUE
+       ORDER BY o.name ASC`,
+      [context.user.id, 'ACTIVE']
+    );
+    availableOrganizations = organizations.rows;
+  }
   const requestId = (req.headers['x-request-id'] as string) || `req_${Date.now()}`;
 
   res.status(200).json({
@@ -402,6 +420,7 @@ v1AuthRouter.get('/session', authenticateToken, async (req: AuthenticatedRequest
       activeOrganization: context.activeOrganization,
       roles: context.roles,
       permissions: context.permissions,
+      availableOrganizations,
       expiresAt: session ? new Date(session.expiresAt).toISOString() : null,
       lastActiveAt: session ? new Date(session.lastActiveAt).toISOString() : null
     },
